@@ -8,9 +8,11 @@ import com.google.api.services.drive.model.File;
 import storage.StorageManager;
 import storage.components.AbstractStorage;
 import storage.components.FileExtension;
+import storage.exceptions.ExtensionNotAllowedException;
+import storage.exceptions.NotEnoughSpaceException;
+import storage.exceptions.TooManyFilesException;
+
 import java.io.*;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -41,7 +43,12 @@ public class GoogleDriveStorage extends AbstractStorage {
         }catch (IOException e) {
                 e.printStackTrace();
         }
-        uploadFile(List.of(tempPath), path);
+
+        try {
+            uploadFile(List.of(tempPath), path);
+        } catch (ExtensionNotAllowedException | TooManyFilesException | NotEnoughSpaceException e) {
+            throw new RuntimeException(e.getMessage());
+        }
     }
 
     private void createRootDirectory(String path){
@@ -62,9 +69,10 @@ public class GoogleDriveStorage extends AbstractStorage {
     }
 
     @Override
-    public void createDirectory(String pathId, String name, int numOfFilesInDir) {
-        if(!getChecker().checkSize(pathId)) return;
-        if(!getChecker().checkNumberOfFileInDirectory(pathId)) return;
+    public void createDirectory(String pathId, String name, int numOfFilesInDir) throws TooManyFilesException, NotEnoughSpaceException {
+
+        if(!getChecker().checkSize(pathId)) throw new NotEnoughSpaceException("There is not enough space");
+        if(!getChecker().checkNumberOfFileInDirectory(pathId)) throw new TooManyFilesException("Maximum number of files reached");
 
         File fileMetadata = new File();
         fileMetadata.setName(name);
@@ -84,20 +92,21 @@ public class GoogleDriveStorage extends AbstractStorage {
     }
 
     @Override
-    public void createDirectories(String pathId, int numOfDir) {
+    public void createDirectories(String pathId, int numOfDir) throws TooManyFilesException, NotEnoughSpaceException {
         for (int i = 1; i < numOfDir + 1; i++) {
             createDirectory(pathId, "Directory" + i, 10);
         }
     }
 
     @Override
-    public void createFile(String pathId, String name) {
-        if(!getChecker().checkExtension(name)) return;
-        if(!getChecker().checkSize(pathId)) return;
-        if(!getChecker().checkNumberOfFileInDirectory(pathId)) return;
+    public void createFile(String pathId, String fileName) throws ExtensionNotAllowedException, TooManyFilesException, NotEnoughSpaceException {
+
+        if(!getChecker().checkExtension(fileName)) throw new ExtensionNotAllowedException("This file extension is not allowed");
+        if(!getChecker().checkSize(pathId)) throw new NotEnoughSpaceException("There is not enough space");
+        if(!getChecker().checkNumberOfFileInDirectory(pathId)) throw new TooManyFilesException("Maximum number of files reached");
 
         File fileMetadata = new File();
-        fileMetadata.setName(name);
+        fileMetadata.setName(fileName);
         fileMetadata.setParents(Collections.singletonList(pathId));
 
         try {
@@ -111,7 +120,7 @@ public class GoogleDriveStorage extends AbstractStorage {
     }
 
     @Override
-    public void createFiles(String pathId, int numOfFiles) {
+    public void createFiles(String pathId, int numOfFiles) throws TooManyFilesException, NotEnoughSpaceException, ExtensionNotAllowedException {
         for (int i = 1; i < numOfFiles + 1; i++) {
             createFile(pathId, "File " + i + ".TXT");
         }
@@ -163,14 +172,14 @@ public class GoogleDriveStorage extends AbstractStorage {
     }
 
     @Override
-    public void uploadFile(List<String> listOfFiles, String destinationId) {
+    public void uploadFile(List<String> listOfFiles, String destinationId) throws ExtensionNotAllowedException, NotEnoughSpaceException, TooManyFilesException {
 
         for (String fileInList : listOfFiles) {
             String fileName = fileInList.substring(fileInList.lastIndexOf("\\") + 1);
 
-            if(!getChecker().checkExtension(fileName)) return;
-            if(!getChecker().checkSize(fileInList)) return;
-            if(!getChecker().checkNumberOfFileInDirectory(destinationId)) return;
+            if(!getChecker().checkExtension(fileName)) throw new ExtensionNotAllowedException("This file extension is not allowed");
+            if(!getChecker().checkSize(fileInList)) throw new NotEnoughSpaceException("There is not enough space");
+            if(!getChecker().checkNumberOfFileInDirectory(destinationId)) throw new TooManyFilesException("Maximum number of files reached");
 
             File fileMetadata = new File();
             fileMetadata.setName(fileName);
@@ -193,13 +202,14 @@ public class GoogleDriveStorage extends AbstractStorage {
     }
 
     @Override
-    public void moveFile(String fileId, String destinationId) {
+    public void moveFile(String fileId, String destinationId) throws ExtensionNotAllowedException, TooManyFilesException, NotEnoughSpaceException {
         try {
             File fileToCheck = service.files().get(fileId).setFields("name").execute();
 
-            if(!getChecker().checkExtension(fileToCheck.getName())) return;
-            if(!getChecker().checkSize(destinationId)) return;
-            if(!getChecker().checkNumberOfFileInDirectory(destinationId)) return;
+            if(!getChecker().checkExtension(fileToCheck.getName())) throw new ExtensionNotAllowedException("This file extension is not allowed");
+            if(!getChecker().checkSize(destinationId)) throw new NotEnoughSpaceException("There is not enough space");
+            if(!getChecker().checkNumberOfFileInDirectory(destinationId)) throw new TooManyFilesException("Maximum number of files reached");
+
             File file = new File();
             file.setParents(Collections.singletonList(destinationId));
 
