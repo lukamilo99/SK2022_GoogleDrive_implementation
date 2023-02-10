@@ -9,6 +9,8 @@ import storage.StorageManager;
 import storage.components.AbstractStorage;
 import storage.components.FileExtension;
 import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -28,16 +30,18 @@ public class GoogleDriveStorage extends AbstractStorage {
         setFilter(new GoogleDriveFilter());
         createRootDirectory(path);
     }
-    //izbaciti apsolutne putanje
+
     @Override
     protected void createJSONConfigurationFile(String path){
         Gson gson = new Gson();
-            try (FileWriter writer = new FileWriter("C:\\Users\\Luka\\Desktop\\SK2022_GoogleDrive_implementation\\src\\main\\resources\\config.json")) {
-                gson.toJson(getConfiguration(), writer);
-            } catch (IOException e) {
+        String tempPath = new java.io.File("config.json").getAbsolutePath();
+
+        try (FileWriter writer = new FileWriter(tempPath)) {
+            gson.toJson(getConfiguration(), writer);
+        }catch (IOException e) {
                 e.printStackTrace();
-            }
-            uploadFile(List.of("C:\\Users\\Luka\\Desktop\\SK2022_GoogleDrive_implementation\\src\\main\\resources\\config.json"), path);
+        }
+        uploadFile(List.of(tempPath), path);
     }
 
     private void createRootDirectory(String path){
@@ -125,11 +129,6 @@ public class GoogleDriveStorage extends AbstractStorage {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-    }
-
-    @Override
-    public void deleteDirectory(String fileId) {
-
     }
 
     @Override
