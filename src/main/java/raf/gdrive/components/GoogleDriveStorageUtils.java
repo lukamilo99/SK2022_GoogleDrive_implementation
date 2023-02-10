@@ -13,7 +13,7 @@ public class GoogleDriveStorageUtils extends StorageUtils {
 
     private static Drive service;
 
-    GoogleDriveStorageUtils(){
+    public GoogleDriveStorageUtils(){
         service = GoogleDriveInit.getService();
     }
 

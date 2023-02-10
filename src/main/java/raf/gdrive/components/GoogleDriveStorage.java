@@ -14,6 +14,7 @@ import java.util.Collections;
 import java.util.List;
 
 public class GoogleDriveStorage extends AbstractStorage {
+
     private static Drive service;
 
     static {
@@ -27,7 +28,7 @@ public class GoogleDriveStorage extends AbstractStorage {
         setFilter(new GoogleDriveFilter());
         createRootDirectory(path);
     }
-
+    //izbaciti apsolutne putanje
     @Override
     protected void createJSONConfigurationFile(String path){
         Gson gson = new Gson();
