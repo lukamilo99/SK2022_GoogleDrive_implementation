@@ -10,9 +10,27 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class GoogleDriveStorageUtils extends StorageUtils {
+
     private static Drive service;
-    public GoogleDriveStorageUtils(){
-        service = GoogleDriveStorage.getService();
+
+    GoogleDriveStorageUtils(){
+        service = GoogleDriveInit.getService();
+    }
+
+    @Override
+    public long getSizeOf(String fileId) {
+        if(fileId.contains("\\")) return getSizeOfFromDisk(fileId);
+
+        List<File> listOfFile = getContent(fileId);
+        long size = 0L;
+
+        for(File file : listOfFile){
+            if(file.getMimeType().equals("application/vnd.google-apps.folder")){
+                size += getSizeOf(file.getId());
+            }
+            else size += file.getSize();
+        }
+        return size;
     }
 
     private long getSizeOfFromDisk(String filePath){
@@ -39,22 +57,6 @@ public class GoogleDriveStorageUtils extends StorageUtils {
             }
         }
         return length;
-    }
-
-    @Override
-    public long getSizeOf(String fileId) {
-        if(fileId.contains("\\")) return getSizeOfFromDisk(fileId);
-
-        List<File> listOfFile = getContent(fileId);
-        long size = 0L;
-
-        for(File file : listOfFile){
-            if(file.getMimeType().equals("application/vnd.google-apps.folder")){
-                size += getSizeOf(file.getId());
-            }
-            else size += file.getSize();
-        }
-        return size;
     }
 
     public static List<File> getContent(String fileId){
@@ -85,8 +87,7 @@ public class GoogleDriveStorageUtils extends StorageUtils {
         }
         return resultList;
     }
-    //07.03.2022. 23:22:22
-    //'2012-06-04T12:00:00'
+
     public static String formatDate(String inputDate){
         StringBuilder resultDate = new StringBuilder();
         String[] dateParts = inputDate.split("\\.");
