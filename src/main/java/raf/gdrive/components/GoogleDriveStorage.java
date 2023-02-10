@@ -1,9 +1,8 @@
-package raf.gdrive;
+package raf.gdrive.components;
 
 import com.google.api.client.http.FileContent;
 import com.google.api.services.drive.model.FileList;
 import com.google.gson.Gson;
-import raf.gdrive.comparator.ComparatorFactory;
 import com.google.api.client.auth.oauth2.Credential;
 import com.google.api.client.extensions.java6.auth.oauth2.AuthorizationCodeInstalledApp;
 import com.google.api.client.extensions.jetty.auth.oauth2.LocalServerReceiver;
@@ -18,8 +17,8 @@ import com.google.api.services.drive.Drive;
 import com.google.api.services.drive.DriveScopes;
 import com.google.api.services.drive.model.File;
 import storage.StorageManager;
-import storage.storageComponents.AbstractStorage;
-import storage.storageComponents.FileExtension;
+import storage.components.AbstractStorage;
+import storage.components.FileExtension;
 import java.io.*;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
@@ -33,7 +32,7 @@ public class GoogleDriveStorage extends AbstractStorage {
     private static final List<String> SCOPES = Collections.singletonList(DriveScopes.DRIVE);
     private static final String CREDENTIALS_FILE_PATH = "/credentials.json";
     private static final NetHttpTransport HTTP_TRANSPORT;
-    private static Drive service;
+    private static final Drive service;
 
     static {
         try {
@@ -49,19 +48,20 @@ public class GoogleDriveStorage extends AbstractStorage {
 
     public GoogleDriveStorage(String path) {
         super(path);
-        getStorageChecker().setStorageUtils(new GoogleDriveStorageUtils());
+        getChecker().setStorageUtils(new GoogleDriveStorageUtils());
+        setFilter(new GoogleDriveFilter());
         createRootDirectory(path);
     }
 
     @Override
     protected void createJSONConfigurationFile(String path){
         Gson gson = new Gson();
-            try (FileWriter writer = new FileWriter("C:\\Users\\LUKA\\Desktop\\config.JSON")) {
+            try (FileWriter writer = new FileWriter("C:\\Users\\Luka\\Desktop\\SK2022_GoogleDrive_implementation\\src\\main\\resources\\config.json")) {
                 gson.toJson(getConfiguration(), writer);
             } catch (IOException e) {
                 e.printStackTrace();
             }
-            uploadFile(List.of("C:\\Users\\LUKA\\Desktop\\config.JSON"), path);
+            uploadFile(List.of("C:\\Users\\Luka\\Desktop\\SK2022_GoogleDrive_implementation\\src\\main\\resources\\config.json"), path);
     }
 
 
@@ -79,9 +79,8 @@ public class GoogleDriveStorage extends AbstractStorage {
                 .setAccessType("offline")
                 .build();
         LocalServerReceiver receiver = new LocalServerReceiver.Builder().setPort(8888).build();
-        Credential credential = new AuthorizationCodeInstalledApp(flow, receiver).authorize("user");
 
-        return credential;
+        return new AuthorizationCodeInstalledApp(flow, receiver).authorize("user");
     }
 
     public static Drive getService() {
@@ -107,8 +106,8 @@ public class GoogleDriveStorage extends AbstractStorage {
 
     @Override
     public void createDirectory(String pathId, String name, int numOfFilesInDir) {
-        if(!getStorageChecker().checkSize(pathId, getConfiguration())) return;
-        if(!getStorageChecker().checkNumberOfFileInDirectory(pathId, getConfiguration())) return;
+        if(!getChecker().checkSize(pathId)) return;
+        if(!getChecker().checkNumberOfFileInDirectory(pathId)) return;
 
         File fileMetadata = new File();
         fileMetadata.setName(name);
@@ -136,9 +135,9 @@ public class GoogleDriveStorage extends AbstractStorage {
 
     @Override
     public void createFile(String pathId, String name) {
-        if(!getStorageChecker().checkExtension(name, getConfiguration())) return;
-        if(!getStorageChecker().checkSize(pathId, getConfiguration())) return;
-        if(!getStorageChecker().checkNumberOfFileInDirectory(pathId, getConfiguration())) return;
+        if(!getChecker().checkExtension(name)) return;
+        if(!getChecker().checkSize(pathId)) return;
+        if(!getChecker().checkNumberOfFileInDirectory(pathId)) return;
 
         File fileMetadata = new File();
         fileMetadata.setName(name);
@@ -217,9 +216,9 @@ public class GoogleDriveStorage extends AbstractStorage {
         for (String fileInList : listOfFiles) {
             String fileName = fileInList.substring(fileInList.lastIndexOf("\\") + 1);
 
-            if(!getStorageChecker().checkExtension(fileName, getConfiguration())) return;
-            if(!getStorageChecker().checkSize(fileInList, getConfiguration())) return;
-            if(!getStorageChecker().checkNumberOfFileInDirectory(destinationId, getConfiguration())) return;
+            if(!getChecker().checkExtension(fileName)) return;
+            if(!getChecker().checkSize(fileInList)) return;
+            if(!getChecker().checkNumberOfFileInDirectory(destinationId)) return;
 
             File fileMetadata = new File();
             fileMetadata.setName(fileName);
@@ -246,9 +245,9 @@ public class GoogleDriveStorage extends AbstractStorage {
         try {
             File fileToCheck = service.files().get(fileId).setFields("name").execute();
 
-            if(!getStorageChecker().checkExtension(fileToCheck.getName(), getConfiguration())) return;
-            if(!getStorageChecker().checkSize(destinationId, getConfiguration())) return;
-            if(!getStorageChecker().checkNumberOfFileInDirectory(destinationId, getConfiguration())) return;
+            if(!getChecker().checkExtension(fileToCheck.getName())) return;
+            if(!getChecker().checkSize(destinationId)) return;
+            if(!getChecker().checkNumberOfFileInDirectory(destinationId)) return;
             File file = new File();
             file.setParents(Collections.singletonList(destinationId));
 
@@ -292,14 +291,14 @@ public class GoogleDriveStorage extends AbstractStorage {
     public String getFilesFromDirectory(String directory, String filter) {
         List<File> listOfFile = GoogleDriveStorageUtils.getContent(directory);
 
-        return filterData(listOfFile, filter);
+        return getFilter().filterData(listOfFile, filter);
     }
 
     @Override
     public String getFilesFromSubdirectories(String directory, String filter) {
         List<File> listOfFile = GoogleDriveStorageUtils.getAllContent(directory);
 
-        return filterData(listOfFile, filter);
+        return getFilter().filterData(listOfFile, filter);
     }
 
     @Override
@@ -313,7 +312,7 @@ public class GoogleDriveStorage extends AbstractStorage {
         listOfFile.removeIf(file -> file.getMimeType().equals("application/vnd.google-apps.folder"));
         listOfFile.removeIf(file -> !GoogleDriveStorageUtils.getFileExtension(file.getName()).equals(fileExtension));
 
-        return filterData(listOfFile, filter);
+        return getFilter().filterData(listOfFile, filter);
     }
 
     @Override
@@ -321,7 +320,7 @@ public class GoogleDriveStorage extends AbstractStorage {
         List<File> listOfFile = GoogleDriveStorageUtils.getContent(directory);
         listOfFile.removeIf(file -> !file.getName().contains(string));
 
-        return filterData(listOfFile, filter);
+        return getFilter().filterData(listOfFile, filter);
     }
 
     @Override
@@ -344,66 +343,28 @@ public class GoogleDriveStorage extends AbstractStorage {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        return filterData(Collections.singletonList(parent), filter);
+        return getFilter().filterData(Collections.singletonList(parent), filter);
     }
 
     @Override
     public String getFilesInPeriod(String directory, String from, String to, String filter) {
-        List<File> listOfFile = new ArrayList<>();
         FileList result;
-        String formatedFrom = GoogleDriveStorageUtils.formatDate(from);
-        String formatedTo = GoogleDriveStorageUtils.formatDate(to);
+        String formattedFrom = GoogleDriveStorageUtils.formatDate(from);
+        String formattedTo = GoogleDriveStorageUtils.formatDate(to);
         String fromDirectory = "'" + directory + "' in parents";
 
         try {
             result = service.files().list()
-                    .setQ("modifiedTime > " + formatedFrom + " and modifiedTime < " + formatedTo + " and " + fromDirectory)
+                    .setQ("modifiedTime > " + formattedFrom + " and modifiedTime < " + formattedTo + " and " + fromDirectory)
                     .setFields("*")
                     .execute();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
 
-        listOfFile.addAll(result.getFiles());
+        List<File> listOfFile = new ArrayList<>(result.getFiles());
 
-        return filterData(listOfFile, filter);
-    }
-
-    public String filterData(List<File> fileList, String filter) {
-
-        boolean nameFlag = false;
-        boolean lastModifiedTimeFlag = false;
-        boolean creationTime = false;
-        boolean size = false;
-        StringBuilder result = new StringBuilder();
-
-        if(filter.contains("n")) nameFlag = true;
-        if(filter.contains("mt")) lastModifiedTimeFlag = true;
-        if(filter.contains("ct")) creationTime = true;
-        if(filter.contains("si")) size = true;
-        if(filter.contains("asc")) Collections.sort(fileList, ComparatorFactory.getComparator(filter.substring(0, 1)));
-        if(filter.contains("desc")) Collections.sort(fileList, Collections.reverseOrder(ComparatorFactory.getComparator(filter.substring(0, 1))));
-        if(filter.contains("all") || filter.isEmpty()){
-            Collections.sort(fileList, ComparatorFactory.getComparator("n"));
-            nameFlag = true;
-            lastModifiedTimeFlag = true;
-            creationTime = true;
-            size = true;
-        }
-
-        for(File file : fileList){
-            if(nameFlag) result.append(file.getName()).append(" ");
-            if(lastModifiedTimeFlag) result.append(file.getModifiedTime()).append(" ");
-            if(creationTime) result.append(file.getCreatedTime()).append(" ");
-            if(size){
-                if(file.getMimeType().equals("application/vnd.google-apps.folder")) result.append(new GoogleDriveStorageUtils().getSizeOf(file.getId()));
-                else result.append(file.getSize());
-            }
-            result.append("\n");
-        }
-
-        if(result.isEmpty()) return "Nothing matches parameters or empty!";
-        else return result.toString().trim();
+        return getFilter().filterData(listOfFile, filter);
     }
 }
 

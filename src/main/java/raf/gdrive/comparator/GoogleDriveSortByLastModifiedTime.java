@@ -1,7 +1,7 @@
 package raf.gdrive.comparator;
 
 import com.google.api.services.drive.model.File;
-import storage.storageComparator.SortByLastModifiedTime;
+import storage.comparator.SortByLastModifiedTime;
 
 public class GoogleDriveSortByLastModifiedTime implements SortByLastModifiedTime<File> {
     @Override

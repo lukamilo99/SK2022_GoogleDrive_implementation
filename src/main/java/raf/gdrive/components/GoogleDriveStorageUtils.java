@@ -1,23 +1,21 @@
-package raf.gdrive;
+package raf.gdrive.components;
 
 import com.google.api.services.drive.Drive;
 import com.google.api.services.drive.model.File;
 import com.google.api.services.drive.model.FileList;
-import storage.storageComponents.StorageUtils;
+import storage.components.StorageUtils;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 
 public class GoogleDriveStorageUtils extends StorageUtils {
-
     private static Drive service;
-
     public GoogleDriveStorageUtils(){
         service = GoogleDriveStorage.getService();
     }
 
-    public long getSizeOfFromDisk(String filePath){
+    private long getSizeOfFromDisk(String filePath){
         java.io.File file = new java.io.File(filePath);
         long length = 0;
 
