@@ -3,52 +3,32 @@ package raf.gdrive.components;
 import com.google.api.client.http.FileContent;
 import com.google.api.services.drive.model.FileList;
 import com.google.gson.Gson;
-import com.google.api.client.auth.oauth2.Credential;
-import com.google.api.client.extensions.java6.auth.oauth2.AuthorizationCodeInstalledApp;
-import com.google.api.client.extensions.jetty.auth.oauth2.LocalServerReceiver;
-import com.google.api.client.googleapis.auth.oauth2.GoogleAuthorizationCodeFlow;
-import com.google.api.client.googleapis.auth.oauth2.GoogleClientSecrets;
-import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
-import com.google.api.client.http.javanet.NetHttpTransport;
-import com.google.api.client.json.JsonFactory;
-import com.google.api.client.json.gson.GsonFactory;
-import com.google.api.client.util.store.FileDataStoreFactory;
 import com.google.api.services.drive.Drive;
-import com.google.api.services.drive.DriveScopes;
 import com.google.api.services.drive.model.File;
 import storage.StorageManager;
 import storage.components.AbstractStorage;
 import storage.components.FileExtension;
+import storage.exceptions.ExtensionNotAllowedException;
+import storage.exceptions.NotEnoughSpaceException;
+import storage.exceptions.TooManyFilesException;
+
 import java.io.*;
-import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 public class GoogleDriveStorage extends AbstractStorage {
-    private static final String APPLICATION_NAME = "Google Drive Storage App";
-    private static final JsonFactory JSON_FACTORY = GsonFactory.getDefaultInstance();
-    private static final String TOKENS_DIRECTORY_PATH = "tokens";
-    private static final List<String> SCOPES = Collections.singletonList(DriveScopes.DRIVE);
-    private static final String CREDENTIALS_FILE_PATH = "/credentials.json";
-    private static final NetHttpTransport HTTP_TRANSPORT;
-    private static final Drive service;
+
+    private static Drive service;
 
     static {
-        try {
-            HTTP_TRANSPORT = GoogleNetHttpTransport.newTrustedTransport();
-            service = new Drive.Builder(HTTP_TRANSPORT, JSON_FACTORY, getCredentials())
-                    .setApplicationName(APPLICATION_NAME)
-                    .build();
-        } catch (GeneralSecurityException | IOException e) {
-            throw new RuntimeException(e);
-        }
         StorageManager.registerStorage(new GoogleDriveStorage(null));
     }
 
     public GoogleDriveStorage(String path) {
         super(path);
-        getChecker().setStorageUtils(new GoogleDriveStorageUtils());
+        service = GoogleDriveInit.getService();
+        setUtilsForChecker(new GoogleDriveStorageUtils());
         setFilter(new GoogleDriveFilter());
         createRootDirectory(path);
     }
@@ -56,35 +36,19 @@ public class GoogleDriveStorage extends AbstractStorage {
     @Override
     protected void createJSONConfigurationFile(String path){
         Gson gson = new Gson();
-            try (FileWriter writer = new FileWriter("C:\\Users\\Luka\\Desktop\\SK2022_GoogleDrive_implementation\\src\\main\\resources\\config.json")) {
-                gson.toJson(getConfiguration(), writer);
-            } catch (IOException e) {
+        String tempPath = new java.io.File("config.json").getAbsolutePath();
+
+        try (FileWriter writer = new FileWriter(tempPath)) {
+            gson.toJson(getConfiguration(), writer);
+        }catch (IOException e) {
                 e.printStackTrace();
-            }
-            uploadFile(List.of("C:\\Users\\Luka\\Desktop\\SK2022_GoogleDrive_implementation\\src\\main\\resources\\config.json"), path);
-    }
-
-
-    private static Credential getCredentials() throws IOException {
-        InputStream in = GoogleDriveStorage.class.getResourceAsStream(CREDENTIALS_FILE_PATH);
-        if (in == null) {
-            throw new FileNotFoundException("Resource not found: " + CREDENTIALS_FILE_PATH);
         }
-        GoogleClientSecrets clientSecrets =
-                GoogleClientSecrets.load(JSON_FACTORY, new InputStreamReader(in));
 
-        GoogleAuthorizationCodeFlow flow = new GoogleAuthorizationCodeFlow.Builder(
-                GoogleDriveStorage.HTTP_TRANSPORT, JSON_FACTORY, clientSecrets, SCOPES)
-                .setDataStoreFactory(new FileDataStoreFactory(new java.io.File(TOKENS_DIRECTORY_PATH)))
-                .setAccessType("offline")
-                .build();
-        LocalServerReceiver receiver = new LocalServerReceiver.Builder().setPort(8888).build();
-
-        return new AuthorizationCodeInstalledApp(flow, receiver).authorize("user");
-    }
-
-    public static Drive getService() {
-        return service;
+        try {
+            uploadFile(List.of(tempPath), path);
+        } catch (ExtensionNotAllowedException | TooManyFilesException | NotEnoughSpaceException e) {
+            throw new RuntimeException(e.getMessage());
+        }
     }
 
     private void createRootDirectory(String path){
@@ -105,9 +69,10 @@ public class GoogleDriveStorage extends AbstractStorage {
     }
 
     @Override
-    public void createDirectory(String pathId, String name, int numOfFilesInDir) {
-        if(!getChecker().checkSize(pathId)) return;
-        if(!getChecker().checkNumberOfFileInDirectory(pathId)) return;
+    public void createDirectory(String pathId, String name, int numOfFilesInDir) throws TooManyFilesException, NotEnoughSpaceException {
+
+        if(!getChecker().checkSize(pathId)) throw new NotEnoughSpaceException("There is not enough space");
+        if(!getChecker().checkNumberOfFileInDirectory(pathId)) throw new TooManyFilesException("Maximum number of files reached");
 
         File fileMetadata = new File();
         fileMetadata.setName(name);
@@ -127,20 +92,21 @@ public class GoogleDriveStorage extends AbstractStorage {
     }
 
     @Override
-    public void createDirectories(String pathId, int numOfDir) {
+    public void createDirectories(String pathId, int numOfDir) throws TooManyFilesException, NotEnoughSpaceException {
         for (int i = 1; i < numOfDir + 1; i++) {
             createDirectory(pathId, "Directory" + i, 10);
         }
     }
 
     @Override
-    public void createFile(String pathId, String name) {
-        if(!getChecker().checkExtension(name)) return;
-        if(!getChecker().checkSize(pathId)) return;
-        if(!getChecker().checkNumberOfFileInDirectory(pathId)) return;
+    public void createFile(String pathId, String fileName) throws ExtensionNotAllowedException, TooManyFilesException, NotEnoughSpaceException {
+
+        if(!getChecker().checkExtension(fileName)) throw new ExtensionNotAllowedException("This file extension is not allowed");
+        if(!getChecker().checkSize(pathId)) throw new NotEnoughSpaceException("There is not enough space");
+        if(!getChecker().checkNumberOfFileInDirectory(pathId)) throw new TooManyFilesException("Maximum number of files reached");
 
         File fileMetadata = new File();
-        fileMetadata.setName(name);
+        fileMetadata.setName(fileName);
         fileMetadata.setParents(Collections.singletonList(pathId));
 
         try {
@@ -154,7 +120,7 @@ public class GoogleDriveStorage extends AbstractStorage {
     }
 
     @Override
-    public void createFiles(String pathId, int numOfFiles) {
+    public void createFiles(String pathId, int numOfFiles) throws TooManyFilesException, NotEnoughSpaceException, ExtensionNotAllowedException {
         for (int i = 1; i < numOfFiles + 1; i++) {
             createFile(pathId, "File " + i + ".TXT");
         }
@@ -172,11 +138,6 @@ public class GoogleDriveStorage extends AbstractStorage {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-    }
-
-    @Override
-    public void deleteDirectory(String fileId) {
-
     }
 
     @Override
@@ -211,14 +172,14 @@ public class GoogleDriveStorage extends AbstractStorage {
     }
 
     @Override
-    public void uploadFile(List<String> listOfFiles, String destinationId) {
+    public void uploadFile(List<String> listOfFiles, String destinationId) throws ExtensionNotAllowedException, NotEnoughSpaceException, TooManyFilesException {
 
         for (String fileInList : listOfFiles) {
             String fileName = fileInList.substring(fileInList.lastIndexOf("\\") + 1);
 
-            if(!getChecker().checkExtension(fileName)) return;
-            if(!getChecker().checkSize(fileInList)) return;
-            if(!getChecker().checkNumberOfFileInDirectory(destinationId)) return;
+            if(!getChecker().checkExtension(fileName)) throw new ExtensionNotAllowedException("This file extension is not allowed");
+            if(!getChecker().checkSize(fileInList)) throw new NotEnoughSpaceException("There is not enough space");
+            if(!getChecker().checkNumberOfFileInDirectory(destinationId)) throw new TooManyFilesException("Maximum number of files reached");
 
             File fileMetadata = new File();
             fileMetadata.setName(fileName);
@@ -241,13 +202,14 @@ public class GoogleDriveStorage extends AbstractStorage {
     }
 
     @Override
-    public void moveFile(String fileId, String destinationId) {
+    public void moveFile(String fileId, String destinationId) throws ExtensionNotAllowedException, TooManyFilesException, NotEnoughSpaceException {
         try {
             File fileToCheck = service.files().get(fileId).setFields("name").execute();
 
-            if(!getChecker().checkExtension(fileToCheck.getName())) return;
-            if(!getChecker().checkSize(destinationId)) return;
-            if(!getChecker().checkNumberOfFileInDirectory(destinationId)) return;
+            if(!getChecker().checkExtension(fileToCheck.getName())) throw new ExtensionNotAllowedException("This file extension is not allowed");
+            if(!getChecker().checkSize(destinationId)) throw new NotEnoughSpaceException("There is not enough space");
+            if(!getChecker().checkNumberOfFileInDirectory(destinationId)) throw new TooManyFilesException("Maximum number of files reached");
+
             File file = new File();
             file.setParents(Collections.singletonList(destinationId));
 

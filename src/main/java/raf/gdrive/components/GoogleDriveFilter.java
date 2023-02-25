@@ -9,8 +9,10 @@ import java.util.Collections;
 import java.util.List;
 
 public class GoogleDriveFilter implements StorageFilter<File> {
+
     private final GoogleDriveStorageUtils googleDriveStorageUtils;
     private final ComparatorFactory comparatorFactory;
+
     public GoogleDriveFilter(){
         this.googleDriveStorageUtils = new GoogleDriveStorageUtils();
         this.comparatorFactory = new ComparatorFactory();
