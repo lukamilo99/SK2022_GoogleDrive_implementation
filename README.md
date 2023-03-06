@@ -6,7 +6,7 @@ A implementation of [API specification](https://github.com/lukamilo99/storage-ha
 
 ## Motivation
 
-This project is a part of a university assignment, which involves developing a library, implementing it, and creating a console application to work with the implementation.
+This project is a part of a university assignment, which involves developing a library specification, implementing it, and creating a console application to work with the implementation.
 
 ## Installation
 ```
